@@ -1,7 +1,10 @@
 package ru.practicum.shareit.request;
 
-/**
- * TODO Sprint add-item-requests.
- */
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
 public class ItemRequest {
+    long id;
 }
