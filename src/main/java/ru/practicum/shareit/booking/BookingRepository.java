@@ -10,7 +10,7 @@ import java.util.Set;
 public interface BookingRepository extends JpaRepository<Booking, Long> {
     Set<Booking> findAllByBookerIdOrderByStartDesc(long userId);
 
-    @Query("select b FROM Booking as b join Item as i on b.item = i WHERE i.user.id = :userId ORDER BY b.start DESC")
+    @Query("SELECT b FROM Booking AS b JOIN Item AS i ON b.item = i WHERE i.user.id = :userId ORDER BY b.start DESC")
     Set<Booking> findByOwnerSortByStart(long userId);
 
     Booking getFirstByItemIdAndEndBeforeOrderByEnd(long itemId, LocalDateTime date);

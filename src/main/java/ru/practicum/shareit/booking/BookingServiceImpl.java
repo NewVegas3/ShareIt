@@ -2,6 +2,7 @@ package ru.practicum.shareit.booking;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.shareit.booking.dto.BookingDto;
 import ru.practicum.shareit.booking.dto.BookingDtoFull;
 import ru.practicum.shareit.booking.model.Booking;
@@ -30,75 +31,60 @@ public class BookingServiceImpl implements BookingService {
         this.itemRepository = itemRepository;
     }
 
-    // Метод для создания новой брони
+    @Transactional
     public BookingDtoFull createBooking(BookingDto dto, long userId) {
-        // Проверка наличия пользователя в базе данных
         if (!userRepository.existsById(userId)) {
             throw new NotFoundException("Пользователь с id " + userId + " не найден");
         }
 
-        // Проверка наличия предмета в базе данных
         if (!itemRepository.existsById(dto.getItemId())) {
             throw new NotFoundException("Предмет с id " + dto.getItemId() + " не найден");
         }
 
-        // Проверка доступности предмета
         if (!itemRepository.findById(dto.getItemId()).get().getIsAvailable()) {
             throw new WrongAccessException("Предмет с id " + dto.getItemId() + " недоступен");
         }
 
-        // Проверка на попытку бронирования своего собственного предмета
         if (itemRepository.findById(dto.getItemId()).get().getUser().getId() == userId) {
             throw new NotFoundException("Нельзя арендовать свой предмет");
         }
 
-        // Проверка корректности дат начала и окончания бронирования
         if (dto.getStart().isAfter(dto.getEnd()) || dto.getStart().isEqual(dto.getEnd())) {
             throw new WrongAccessException("Дата окончания бронирования не может быть позднее даты начала");
         }
 
-        // Установка пользователя-заказчика и создание объекта Booking
         dto.setBooker(userId);
         Booking booking = BookingMapper.toBooking(dto, itemRepository.findById(dto.getItemId()).get(), userRepository.findById(userId).get());
 
-        // Установка статуса бронирования на ожидание и сохранение в репозитории
         booking.setStatus(Status.WAITING);
         booking = bookingRepository.save(booking);
 
-        // Получение информации о предмете
         Item item = itemRepository.findById(dto.getItemId()).get();
 
-        // Возврат полной информации о созданной брони
         return BookingMapper.toBookingDtoFull(booking, item);
     }
 
-    // Метод для подтверждения брони или отклонения
+    @Transactional
     public BookingDtoFull confirmBooking(long bookingId, boolean approved, long userId) {
-        // Проверка наличия пользователя в базе данных
         if (!userRepository.existsById(userId)) {
             throw new NotFoundException("Пользователь с id " + userId + " не найден");
         }
 
-        // Проверка наличия брони в базе данных
         if (!bookingRepository.existsById(bookingId)) {
             throw new NotFoundException("Букинг с id " + bookingId + " не найден");
         }
 
-        // Получение информации о бронировании
         Booking booking = bookingRepository.findById(bookingId).get();
 
-        // Проверка прав доступа: только владелец предмета может подтверждать/отклонять
         if (booking.getItem().getUser().getId() != userId) {
             throw new NotFoundException("Недостаточно прав для показа");
         }
 
-        // Проверка статуса бронирования и возможность подтверждения/отклонения
-        if (booking.getStatus().equals(Status.APPROVED) && approved || (booking.getStatus().equals(Status.REJECTED) && !approved)) {
+        if ((booking.getStatus() == Status.APPROVED && approved) || (booking.getStatus() == Status.REJECTED && !approved)) {
             throw new WrongAccessException("Букинг уже подтвержден");
         }
 
-        // Если бронирование находится в статусе "ожидание", обновляем его статус
-        if (booking.getStatus().equals(Status.WAITING)) {
+        if (booking.getStatus() == Status.WAITING) {
             if (approved) {
                 booking.setStatus(Status.APPROVED);
             } else {
@@ -106,32 +92,25 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-        // Сохранение обновленной информации о бронировании
         booking = bookingRepository.save(booking);
 
-        // Получение информации о предмете
         Item item = itemRepository.findById(booking.getItem().getId()).get();
 
-        // Возврат обновленной информации о бронировании
         return BookingMapper.toBookingDtoFull(booking, item);
     }
 
-    // Метод для получения информации о конкретной брони
+    @Transactional
     public BookingDtoFull getBooking(long bookingId, long userId) {
-        // Проверка наличия пользователя в базе данных
         if (!userRepository.existsById(userId)) {
             throw new NotFoundException("Пользователь с id " + userId + " не найден");
         }
 
-        // Проверка наличия брони в базе данных
         if (!bookingRepository.existsById(bookingId)) {
             throw new NotFoundException("Букинг с id " + bookingId + " не найден");
         }
 
-        // Получение информации о бронировании
         Booking booking = bookingRepository.findById(bookingId).get();
 
-        // Проверка прав доступа: бронирование может просматривать либо заказчик, либо владелец предмета
         if (booking.getBooker().getId() == userId || booking.getItem().getUser().getId() == userId) {
             return BookingMapper.toBookingDtoFull(booking, booking.getItem());
         } else {
@@ -139,14 +118,12 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
-    // Метод для получения списка бронирований пользователя с возможностью фильтрации по статусу
+    @Transactional
     public Collection<BookingDtoFull> getUsersBookings(String state, long userId) {
-        // Проверка наличия пользователя в базе данных
         if (!userRepository.existsById(userId)) {
             throw new NotFoundException("Пользователь с id " + userId + " не найден");
         }
 
-        // Получение списка бронирований пользователя с возможностью фильтрации по статусу
         if (state.equals("ALL")) {
             return bookingRepository.findAllByBookerIdOrderByStartDesc(userId)
                     .stream()
@@ -161,19 +138,16 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
-    // Метод для получения списка бронирований элементов пользователя с возможностью фильтрации по статусу
+    @Transactional
     public Collection<BookingDtoFull> getUsersItemsBookings(String state, long userId) {
-        // Проверка наличия пользователя в базе данных
         if (!userRepository.existsById(userId)) {
             throw new NotFoundException("Пользователь с id " + userId + " не найден");
         }
 
-        // Проверка наличия элементов у пользователя
         if (itemRepository.findByUserId(userId).size() == 0) {
             throw new NotFoundException("У пользователя с id " + userId + " нет вещей");
         }
 
-        // Получение списка бронирований элементов пользователя с возможностью фильтрации по статусу
         if (state.equals("ALL")) {
             return bookingRepository.findByOwnerSortByStart(userId)
                     .stream()
@@ -188,7 +162,13 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
-    // Метод для определения предиката фильтрации по статусу
+    @Transactional
+    public void checkUserId(long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new NotFoundException("Пользователь с id " + userId + " не найден");
+        }
+    }
+
     private Predicate<Booking> getOperation(String state) {
         switch (state) {
             case "CURRENT":
@@ -206,17 +186,8 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
-    // Метод для проверки существования пользователя по идентификатору
-    public void checkUserId(long userId) {
-        // Проверка наличия пользователя в базе данных
-        if (!userRepository.existsById(userId)) {
-            throw new NotFoundException("Пользователь с id " + userId + " не найден");
-        }
-    }
-
-    // Метод для получения статуса брони на основе подтверждения
-    private Status getStatusFromApproved(Boolean approved) {
-        // Определение статуса бронирования на основе подтверждения
+    @Transactional
+    public Status getStatusFromApproved(Boolean approved) {
         if (approved) {
             return Status.APPROVED;
         } else {
