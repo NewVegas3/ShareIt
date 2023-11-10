@@ -1,123 +1,187 @@
 package ru.practicum.shareit.item;
 
-import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import ru.practicum.shareit.booking.model.Booking;
+import ru.practicum.shareit.booking.BookingRepository;
+import ru.practicum.shareit.booking.Status;
+import ru.practicum.shareit.cooment.CommentMapper;
+import ru.practicum.shareit.cooment.CommentRepository;
+import ru.practicum.shareit.cooment.dto.CommentDto;
+import ru.practicum.shareit.cooment.dto.CommentDtoFull;
+import ru.practicum.shareit.cooment.model.Comment;
+import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.WrongAccessException;
 import ru.practicum.shareit.item.dto.ItemDto;
+import ru.practicum.shareit.item.dto.ItemDtoFull;
 import ru.practicum.shareit.item.model.Item;
-import ru.practicum.shareit.user.UserService;
+import ru.practicum.shareit.user.UserRepository;
 
-import java.util.*;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Set;
 import java.util.stream.Collectors;
 
-@Component
+@Service
 public class ItemServiceImpl implements ItemService {
-    private final UserService userService;
-    private final Map<Long, Item> items = new HashMap<>();
-    private long nextId = 1;
+    private UserRepository userRepository;
+    private ItemRepository itemRepository;
+    private BookingRepository bookingRepository;
+    private CommentRepository commentRepository;
 
-    public ItemServiceImpl(UserService userService) {
-        this.userService = userService;
+    @Autowired
+    public ItemServiceImpl(UserRepository userRepository, ItemRepository itemRepository, BookingRepository bookingRepository, CommentRepository commentRepository) {
+        this.userRepository = userRepository;
+        this.itemRepository = itemRepository;
+        this.bookingRepository = bookingRepository;
+        this.commentRepository = commentRepository;
     }
 
-    // Создает новую вещь и добавляет ее в коллекцию вещей.
+    // Метод для создания нового предмета
     public ItemDto createItem(ItemDto dto, long userId) {
-        userService.getUserById(userId); // Проверяет наличие пользователя с заданным id.
-        dto.setOwner(userId); // Устанавливает пользователя как владельца вещи.
-        dto.setId(nextId); // Устанавливает уникальный id для вещи.
-        nextId++;
-        Item item = ItemMapper.toItem(dto);
-        items.put(item.getId(), item); // Добавляет вещь в коллекцию вещей.
+        userExistenceCheck(userId);
+
+        dto.setUserId(userId);
+        Item item = ItemMapper.toItem(dto, userRepository.findById(userId).orElseThrow(() -> new NotFoundException("Пользователь с id " + userId + " не найден")));
+        item = itemRepository.save(item);
         return ItemMapper.toItemDto(item);
     }
 
-    // Обновляет информацию о вещи (имя, описание, доступность).
+    // Метод для обновления информации о предмете
     public ItemDto updateItem(ItemDto dto, long itemId, long userId) {
-        ItemDto itemUpdate = getItemById(itemId, userId); // Проверяет наличие пользователя с заданным id и вещи в базе.
-        if (itemUpdate.getOwner() != 0) {
-            accessCheck(itemUpdate.getOwner(), userId); // Проверяет доступ пользователя к вещи.
-        }
+        userExistenceCheck(userId);
+        itemExistenceCheck(itemId);
+        dto.setUserId(userId);
+
+        Item item = itemRepository.findById(itemId).orElseThrow(() -> new NotFoundException("Предмет с id " + itemId + " не найден"));
+        accessCheck(item.getUser().getId(), userId);
+
         if (dto.getName() != null) {
-            itemUpdate.setName(dto.getName()); // Обновляет имя вещи.
+            item.setName(dto.getName());
         }
         if (dto.getDescription() != null) {
-            itemUpdate.setDescription(dto.getDescription()); // Обновляет описание вещи.
+            item.setDescription(dto.getDescription());
         }
         if (dto.getAvailable() != null) {
-            itemUpdate.setAvailable(dto.getAvailable()); // Обновляет доступность вещи.
+            item.setIsAvailable(dto.getAvailable());
         }
-        items.put(itemId, ItemMapper.toItem(itemUpdate)); // Обновляет информацию о вещи в коллекции.
-        return itemUpdate;
-    }
+        itemRepository.save(item);
 
-    // Получает информацию о вещи по ее id и возвращает ее в виде DTO объекта.
-    public ItemDto getItemById(long id, long userId) {
-        // Проверка существования вещи с заданным id
-        if (!items.containsKey(id)) {
-            // Вещь не найдена, выбрасываем исключение или выполняем нужную обработку ошибки
-        }
-
-        // Получение вещи по id
-        Item item = items.get(id);
-
-        // Проверка, что пользователь с userId имеет доступ к этой вещи (если требуется)
-        // Может потребоваться дополнительная логика для определения доступа
-
-        // Возвращаем вещь в виде DTO
         return ItemMapper.toItemDto(item);
     }
 
-    // Получает список всех вещей пользователя в виде DTO объектов.
-    public Collection<ItemDto> getAllUsersItems(long userId) {
-        // Создаем список для хранения вещей пользователя
-        Collection<ItemDto> userItems = new ArrayList<>();
+    // Метод для удаления предмета
+    public void deleteItem(long itemId, long userId) {
+        userExistenceCheck(userId);
+        itemExistenceCheck(itemId);
 
-        // Проходим по всем вещам и добавляем в список только те, которые принадлежат пользователю
-        for (Item item : items.values()) {
-            if (item.getOwner() == userId) {
-                userItems.add(ItemMapper.toItemDto(item));
-            }
-        }
-
-        return userItems;
+        Item item = itemRepository.findById(itemId).orElseThrow(() -> new NotFoundException("Предмет с id " + itemId + " не найден"));
+        accessCheck(item.getUser().getId(), userId);
+        itemRepository.deleteById(itemId);
     }
 
-    // Ищет вещи по заданному тексту и возвращает их в виде DTO объектов.
-    public Collection<ItemDto> findItem(String text, long userId) {
-        userService.getUserById(userId);
+    // Метод для получения информации о предмете по его ID
+    public ItemDtoFull getItemById(long itemId, Long userId) {
+        itemExistenceCheck(itemId);
+
+        Item item = itemRepository.findById(itemId).orElseThrow(() -> new NotFoundException("Предмет с id " + itemId + " не найден"));
+        Set<CommentDtoFull> comments = getComments(itemId);
+
+        if (userId != null && userId.equals(item.getUser().getId())) {
+            userExistenceCheck(userId);
+
+            Booking lastBooking = bookingRepository.getFirstByItemIdAndStatusNotAndStartBeforeOrderByEndDesc(itemId, Status.REJECTED, LocalDateTime.now());
+            Booking nextBooking = bookingRepository.getFirstByItemIdAndStatusNotAndStartAfterOrderByStart(itemId, Status.REJECTED, LocalDateTime.now());
+
+            return ItemMapper.toItemDtoFull(item, lastBooking, nextBooking, comments);
+        } else {
+            return ItemMapper.toItemDtoFull(item, null, null, comments);
+        }
+    }
+
+    // Метод для получения списка всех предметов
+    public Collection<ItemDto> getAllItems() {
+        return itemRepository.findAll()
+                .stream()
+                .map(ItemMapper::toItemDto)
+                .collect(Collectors.toList());
+    }
+
+    // Метод для получения списка всех предметов, принадлежащих пользователю
+    public Collection<ItemDtoFull> getAllUsersItems(Long userId) {
+        if (userId == null) {
+            return itemRepository.findAll()
+                    .stream()
+                    .map(item -> ItemMapper.toItemDtoFull(item, null, null, getComments(item.getId())))
+                    .collect(Collectors.toList());
+        }
+        userExistenceCheck(userId);
+        LocalDateTime localDateTime = LocalDateTime.now();
+
+        return itemRepository.findByUserId(userId)
+                .stream()
+                .map(item -> ItemMapper.toItemDtoFull(item,
+                        bookingRepository.getFirstByItemIdAndEndBeforeOrderByEnd(item.getId(), localDateTime),
+                        bookingRepository.getTopByItemIdAndStartAfterOrderByStart(item.getId(), localDateTime),
+                        getComments(item.getId())))
+                .collect(Collectors.toList());
+    }
+
+    // Метод для поиска предметов по текстовому описанию
+    public Collection<ItemDto> findItem(String text, Long userId) {
         if (text.isBlank()) {
-            return List.of();
+            return new ArrayList<>();
         }
-        String textInLowerCase = text.toLowerCase();
-        return items.values()
-                .stream()
-                .filter(item -> item.getName().toLowerCase().contains(textInLowerCase) || item.getDescription().toLowerCase().contains(textInLowerCase))
-                .filter(Item::getAvailable)
-                .map(ItemMapper::toItemDto)
-                .collect(Collectors.toList());
-    }
-
-    // Удаляет вещь по ее id, проверяя доступ пользователя к удалению.
-    public void deleteItem(long id, long userId) {
-        userService.getUserById(userId); // Проверяет наличие пользователя с заданным id.
-        ItemDto dto = getItemById(id, userId); // Проверяет наличие вещи в базе.
-        accessCheck(dto.getOwner(), userId); // Проверяет доступ пользователя к вещи.
-        items.remove(id); // Удаляет вещь из коллекции.
-    }
-
-    // Возвращает список всех вещей в виде DTO объектов.
-    public Collection<ItemDto> getAllItems(long userId) {
-        userService.getUserById(userId); // Проверяет наличие пользователя с заданным id.
-        return items.values()
+        return itemRepository.findByNameOrDescriptionContainingIgnoreCase(text)
                 .stream()
                 .map(ItemMapper::toItemDto)
                 .collect(Collectors.toList());
     }
 
-    // Проверяет доступ пользователя к редактированию вещи.
-    public void accessCheck(long userIdFromItem, long userIdFromRequest) {
+    // Метод для добавления комментария к предмету
+    public CommentDtoFull addComment(CommentDto commentDto, long itemId, long userId) {
+        userExistenceCheck(userId);
+        itemExistenceCheck(itemId);
+        Booking booking = bookingRepository.findFirstByBookerId(userId);
+
+        if (booking != null && booking.getEnd().isBefore(LocalDateTime.now())) {
+            commentDto.setAuthor(userRepository.findById(userId).orElseThrow(() -> new NotFoundException("Пользователь с id " + userId + " не найден")).getId());
+            commentDto.setCreated(LocalDateTime.now());
+            Comment comment = CommentMapper.toComment(commentDto, itemRepository.findById(itemId).orElseThrow(() -> new NotFoundException("Предмет с id " + itemId + " не найден")), userRepository.findById(userId).orElseThrow(() -> new NotFoundException("Пользователь с id " + userId + " не найден")));
+            comment = commentRepository.save(comment);
+            return CommentMapper.toCommentDtoFull(comment);
+        } else {
+            throw new WrongAccessException("Пользователь не брал предмет в аренду или срок аренды еще не истек");
+        }
+    }
+
+    // Приватный метод для проверки существования пользователя по идентификатору
+    private void userExistenceCheck(long id) {
+        if (!userRepository.existsById(id)) {
+            throw new NotFoundException("Пользователь с id " + id + " не найден");
+        }
+    }
+
+    // Приватный метод для проверки существования предмета по идентификатору
+    private void itemExistenceCheck(long id) {
+        if (!itemRepository.existsById(id)) {
+            throw new NotFoundException("Предмет с id " + id + " не найден");
+        }
+    }
+
+    // Приватный метод для проверки прав доступа к предмету
+    private void accessCheck(long userIdFromItem, long userIdFromRequest) {
         if (userIdFromItem != userIdFromRequest) {
             throw new WrongAccessException("Недостаточно прав для редактирования");
         }
     }
-}
 
+    // Приватный метод для получения комментариев к предмету
+    private Set<CommentDtoFull> getComments(long itemId) {
+        return commentRepository.findAllByItemId(itemId)
+                .stream()
+                .map(CommentMapper::toCommentDtoFull)
+                .collect(Collectors.toSet());
+    }
+}
