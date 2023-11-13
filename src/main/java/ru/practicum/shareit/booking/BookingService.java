@@ -12,9 +12,9 @@ public interface BookingService {
 
     BookingDtoFull getBooking(long bookingId, long userId);
 
-    Collection<BookingDtoFull> getUsersBookings(String state, long userId);
+    Collection<BookingDtoFull> getUsersBookings(String state, Integer from, Integer size, long userId);
 
-    Collection<BookingDtoFull> getUsersItemsBookings(String state, long userId);
+    Collection<BookingDtoFull> getUsersItemsBookings(String state, Integer from, Integer size, long userId);
 
     void checkUserId(long userId);
 }

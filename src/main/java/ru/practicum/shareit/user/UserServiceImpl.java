@@ -4,7 +4,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.user.dto.UserDto;
+import ru.practicum.shareit.user.mapper.UserMapper;
 import ru.practicum.shareit.user.model.User;
+import ru.practicum.shareit.user.repository.UserRepository;
 
 import java.util.Collection;
 import java.util.stream.Collectors;
@@ -26,21 +28,14 @@ public class UserServiceImpl implements UserService {
 
     // Метод для обновления информации о пользователе
     public UserDto updateUser(UserDto dto, long userId) {
-        if (!repository.existsById(userId)) {
-            throw new NotFoundException("Пользователь с id " + userId + " не найден.");
-        }
-
         User user = repository.findById(userId).orElseThrow(() -> new NotFoundException("Пользователь с id " + userId + " не найден."));
         user.setId(userId);
-
         if (dto.getName() != null) {
             user.setName(dto.getName());
         }
-
         if (dto.getEmail() != null) {
             user.setEmail(dto.getEmail());
         }
-
         repository.save(user);
         return UserMapper.toUserDto(user);
     }

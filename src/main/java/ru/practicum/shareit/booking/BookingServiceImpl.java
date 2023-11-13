@@ -1,20 +1,26 @@
 package ru.practicum.shareit.booking;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.shareit.booking.dto.BookingDto;
 import ru.practicum.shareit.booking.dto.BookingDtoFull;
 import ru.practicum.shareit.booking.model.Booking;
+import ru.practicum.shareit.booking.repository.BookingRepository;
+import ru.practicum.shareit.booking.util.Status;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.WrongAccessException;
 import ru.practicum.shareit.exception.WrongStateException;
-import ru.practicum.shareit.item.ItemRepository;
 import ru.practicum.shareit.item.model.Item;
-import ru.practicum.shareit.user.UserRepository;
+import ru.practicum.shareit.user.repository.UserRepository;
+import ru.practicum.shareit.item.repository.ItemRepository;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -122,20 +128,10 @@ public class BookingServiceImpl implements BookingService {
     // Метод для получения информации о конкретной брони
     @Transactional
     public BookingDtoFull getBooking(long bookingId, long userId) {
-        // Проверка наличия пользователя в базе данных
-        if (!userRepository.existsById(userId)) {
-            throw new NotFoundException("Пользователь с id " + userId + " не найден");
-        }
-
-        // Проверка наличия брони в базе данных
-        if (!bookingRepository.existsById(bookingId)) {
+        if (bookingRepository.existsById(bookingId) == false) {
             throw new NotFoundException("Букинг с id " + bookingId + " не найден");
         }
-
-        // Получение информации о бронировании
         Booking booking = bookingRepository.findById(bookingId).get();
-
-        // Проверка прав доступа: бронирование может просматривать либо заказчик, либо владелец предмета
         if (booking.getBooker().getId() == userId || booking.getItem().getUser().getId() == userId) {
             return BookingMapper.toBookingDtoFull(booking, booking.getItem());
         } else {
@@ -143,22 +139,22 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
-    // Метод для получения списка бронирований пользователя с возможностью фильтрации по статусу
     @Transactional
-    public Collection<BookingDtoFull> getUsersBookings(String state, long userId) {
-        // Проверка наличия пользователя в базе данных
-        if (!userRepository.existsById(userId)) {
-            throw new NotFoundException("Пользователь с id " + userId + " не найден");
+    public Collection<BookingDtoFull> getUsersBookings(String state, Integer from, Integer size, long userId) {
+        checkUserId(userId);
+        if (from >= 1) {
+            from = from - 2;
         }
-
-        // Получение списка бронирований пользователя с возможностью фильтрации по статусу
+        Pageable allBookings =
+                PageRequest.of(from, size, Sort.by("start").descending());
+        List<Booking> bookings = bookingRepository.findAllByBookerId(userId, allBookings);
         if (state.equals("ALL")) {
-            return bookingRepository.findAllByBookerIdOrderByStartDesc(userId)
+            return bookings
                     .stream()
                     .map(booking -> BookingMapper.toBookingDtoFull(booking, itemRepository.findById(booking.getItem().getId()).get()))
                     .collect(Collectors.toList());
         } else {
-            return bookingRepository.findAllByBookerIdOrderByStartDesc(userId)
+            return bookings
                     .stream()
                     .filter(getOperation(state))
                     .map(booking -> BookingMapper.toBookingDtoFull(booking, itemRepository.findById(booking.getItem().getId()).get()))
@@ -166,27 +162,21 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
-    // Метод для получения списка бронирований элементов пользователя с возможностью фильтрации по статусу
-    @Transactional
-    public Collection<BookingDtoFull> getUsersItemsBookings(String state, long userId) {
-        // Проверка наличия пользователя в базе данных
-        if (!userRepository.existsById(userId)) {
-            throw new NotFoundException("Пользователь с id " + userId + " не найден");
-        }
-
-        // Проверка наличия элементов у пользователя
+    public Collection<BookingDtoFull> getUsersItemsBookings(String state, Integer from, Integer size, long userId) {
+        checkUserId(userId);
         if (itemRepository.findByUserId(userId).size() == 0) {
             throw new NotFoundException("У пользователя с id " + userId + " нет вещей");
         }
-
-        // Получение списка бронирований элементов пользователя с возможностью фильтрации по статусу
+        Pageable allBookings =
+                PageRequest.of(from, size, Sort.by("start").descending());
+        List<Booking> bookings = bookingRepository.findByOwner(userId, allBookings);
         if (state.equals("ALL")) {
-            return bookingRepository.findByOwnerSortByStart(userId)
+            return bookings
                     .stream()
                     .map(booking -> BookingMapper.toBookingDtoFull(booking, itemRepository.findById(booking.getItem().getId()).get()))
                     .collect(Collectors.toList());
         } else {
-            return bookingRepository.findByOwnerSortByStart(userId)
+            return bookings
                     .stream()
                     .filter(getOperation(state))
                     .map(booking -> BookingMapper.toBookingDtoFull(booking, itemRepository.findById(booking.getItem().getId()).get()))
