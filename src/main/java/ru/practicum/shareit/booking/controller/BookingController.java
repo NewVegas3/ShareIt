@@ -31,7 +31,7 @@ public class BookingController {
         return bookingService.confirmBooking(bookingId, approved, userId);
     }
 
-    // Получение информации о конкретной брони по её идентификатору
+    // Получение информации о конкретной брони по её идентификатору.
     @GetMapping("/{bookingId}")
     public BookingDtoFull getBooking(@PathVariable long bookingId, @RequestHeader("X-Sharer-User-Id") long userId) {
         return bookingService.getBooking(bookingId, userId);
