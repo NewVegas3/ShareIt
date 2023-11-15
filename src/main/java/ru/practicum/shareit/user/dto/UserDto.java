@@ -1,7 +1,9 @@
 package ru.practicum.shareit.user.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import ru.practicum.shareit.validation.ExistUpdateEmail;
 import ru.practicum.shareit.validation.ExistUpdateName;
 import ru.practicum.shareit.validation.New;
@@ -11,6 +13,8 @@ import javax.validation.constraints.NotBlank;
 
 @Data
 @Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class UserDto {
     private Long id;
     @NotBlank(groups = {New.class, ExistUpdateEmail.class}) // New.class - применимо для новых объектов User

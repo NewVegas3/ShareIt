@@ -1,23 +1,22 @@
 package ru.practicum.shareit.request.dto;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.*;
+import ru.practicum.shareit.item.dto.ItemDtoForRequest;
 
 import javax.validation.constraints.NotBlank;
 import java.time.LocalDateTime;
-
-import static ru.practicum.shareit.util.Formatter.PATTERN_FOR_DATETIME;
+import java.util.List;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ItemRequestDto {
+public class ItemRequestDtoFull {
     private Long id;
     @NotBlank
     private String description;
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = PATTERN_FOR_DATETIME)
     private LocalDateTime created;
     private long requester;
+    private List<ItemDtoForRequest> items;
 }
