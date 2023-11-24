@@ -149,16 +149,17 @@ public class BookingServiceImpl implements BookingService {
         Pageable allBookings =
                 PageRequest.of(from, size, Sort.by("start").descending());
         List<Booking> bookings = bookingRepository.findAllByBookerId(userId, allBookings);
+
         if (state.equals("ALL")) {
             return bookings
                     .stream()
-                    .map(booking -> BookingMapper.toBookingDtoFull(booking, itemRepository.findById(booking.getItem().getId()).get()))
+                    .map(booking -> BookingMapper.toBookingDtoFull(booking, booking.getItem()))
                     .collect(Collectors.toList());
         } else {
             return bookings
                     .stream()
                     .filter(getOperation(state))
-                    .map(booking -> BookingMapper.toBookingDtoFull(booking, itemRepository.findById(booking.getItem().getId()).get()))
+                    .map(booking -> BookingMapper.toBookingDtoFull(booking, booking.getItem()))
                     .collect(Collectors.toList());
         }
     }

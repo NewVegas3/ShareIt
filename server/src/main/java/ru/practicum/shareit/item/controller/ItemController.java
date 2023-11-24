@@ -10,7 +10,6 @@ import ru.practicum.shareit.item.service.ItemService;
 import ru.practicum.shareit.validation.Exist;
 import ru.practicum.shareit.validation.New;
 
-import javax.validation.Valid;
 import java.util.Collection;
 
 @RestController
@@ -54,7 +53,7 @@ public class ItemController {
 
     // Метод для добавления комментария к предмету
     @PostMapping("/{itemId}/comment")
-    public CommentDtoFull addComment(@RequestBody @Valid CommentDto commentDto, @PathVariable long itemId, @RequestHeader("X-Sharer-User-Id") long userId) {
+    public CommentDtoFull addComment(@RequestBody CommentDto commentDto, @PathVariable long itemId, @RequestHeader("X-Sharer-User-Id") long userId) {
         return itemService.addComment(commentDto, itemId, userId);
     }
 }

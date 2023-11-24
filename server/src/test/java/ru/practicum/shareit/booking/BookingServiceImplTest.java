@@ -133,18 +133,17 @@ public class BookingServiceImplTest {
 
     @Test
     public void getUsersBookings() {
-        User user = new User(1L,"Anastasiya","ana@mail.ru");
+        User user = new User(1L, "Anastasiya", "ana@mail.ru");
         Item item = new Item(1L, "item", "description", true, user, new ItemRequest());
         Booking booking = new Booking(1L, LocalDateTime.of(2023, 11, 6, 23, 30), LocalDateTime.of(2023, 11, 6, 23, 50), item, user, Status.WAITING);
         List<Booking> bookingList = List.of(booking);
 
         Mockito.when(userRepository.existsById(Mockito.anyLong())).thenReturn(true);
-        Mockito.when(itemRepository.findById(Mockito.anyLong())).thenReturn(Optional.of(item));
         Mockito.when(bookingRepository.findAllByBookerId(Mockito.anyLong(), Mockito.any())).thenReturn(bookingList);
 
         Collection<BookingDtoFull> bookings = bookingService.getUsersBookings("ALL", 0, 2, 1L);
 
-        assertThat(bookings.size(),equalTo(1));
+        assertThat(bookings.size(), equalTo(1));
     }
 
     @Test
