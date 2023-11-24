@@ -123,7 +123,7 @@ public class ItemServiceImplTest {
         assertThat(actualItems, empty());
         verify(itemRepository, never()).findById(anyLong());
         verify(commentRepository, never()).findAllByItemId(anyLong());
-        verify(itemRepository).findByUserId(anyLong());
+        verify(itemRepository).findByUserIdOrderById(anyLong());
     }
 
     @Test
@@ -135,7 +135,7 @@ public class ItemServiceImplTest {
         List<Item> expectedItems = List.of(item);
 
         when(userRepository.existsById(anyLong())).thenReturn(true);
-        when(itemRepository.findByUserId(anyLong())).thenReturn(expectedItems);
+        when(itemRepository.findByUserIdOrderById(anyLong())).thenReturn(expectedItems);
         when(bookingRepository.getFirstByItemIdAndEndBeforeOrderByEnd(anyLong(), any())).thenReturn(booking);
         when(bookingRepository.getTopByItemIdAndStartAfterOrderByStart(anyLong(), any())).thenReturn(null);
 
@@ -148,7 +148,7 @@ public class ItemServiceImplTest {
         assertThat(expectedItems.get(0).getDescription(), equalTo(actualItems.get(0).getDescription()));
         assertThat(expectedItems.get(0).getIsAvailable(), equalTo(actualItems.get(0).getAvailable()));
 
-        verify(itemRepository).findByUserId(anyLong());
+        verify(itemRepository).findByUserIdOrderById(anyLong());
         verify(commentRepository).findAllByItemId(anyLong());
     }
 
